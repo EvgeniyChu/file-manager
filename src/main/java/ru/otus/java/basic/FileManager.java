@@ -3,7 +3,6 @@ package ru.otus.java.basic;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Scanner;
 
@@ -24,9 +23,11 @@ public class FileManager {
         while (true) {
             System.out.print(currentDirectory.getAbsolutePath() + " > ");
             command = scanner.nextLine().trim();
+
             if (command.equals("exit")) {
                 break;
             }
+
             processCommand(command);
         }
 
@@ -67,22 +68,27 @@ public class FileManager {
                     findFile(parts);
                     break;
                 default:
-                    System.out.println("Неизвестная команда. Введите 'help' для списка команд.");
+                    System.out.println("Ошибка: Неизвестная команда '" + mainCommand + "'. Введите 'help' для списка поддерживаемых команд.");
+                    break;
             }
         } catch (Exception e) {
             System.out.println("Ошибка: " + e.getMessage());
         }
     }
 
-    private void listFiles(boolean detailed) throws IOException {
+    private void listFiles(boolean detailed) {
         File[] files = currentDirectory.listFiles();
         if (files != null && files.length > 0) {
             for (File file : files) {
                 if (detailed) {
-                    System.out.printf("%s - %d байт - %s%n",
-                            file.getName(),
-                            file.length(),
-                            Files.getLastModifiedTime(file.toPath()));
+                    try {
+                        System.out.printf("%s - %d байт - %s%n",
+                                file.getName(),
+                                file.length(),
+                                Files.getLastModifiedTime(file.toPath()));
+                    } catch (IOException e) {
+                        System.out.println("Ошибка получения времени последнего изменения файла: " + e.getMessage());
+                    }
                 } else {
                     System.out.println(file.getName());
                 }
@@ -94,7 +100,7 @@ public class FileManager {
 
     private void changeDirectory(String[] parts) {
         if (parts.length < 2) {
-            System.out.println("Не указан путь к директории.");
+            System.out.println("Ошибка: Не указан путь к директории.");
             return;
         }
 
@@ -104,13 +110,13 @@ public class FileManager {
         } else if (parts[1].equals("..")) {
             currentDirectory = currentDirectory.getParentFile();
         } else {
-            System.out.println("Директория не найдена.");
+            System.out.println("Ошибка: Директория не найдена.");
         }
     }
 
     private void createDirectory(String[] parts) {
         if (parts.length < 2) {
-            System.out.println("Не указано имя директории.");
+            System.out.println("Ошибка: Не указано имя директории.");
             return;
         }
 
@@ -119,32 +125,32 @@ public class FileManager {
             newDir.mkdir();
             System.out.println("Директория создана: " + newDir.getName());
         } else {
-            System.out.println("Директория с таким именем уже существует.");
+            System.out.println("Ошибка: Директория с таким именем уже существует.");
         }
     }
 
     private void removeFile(String[] parts) {
         if (parts.length < 2) {
-            System.out.println("Не указано имя файла или директории для удаления.");
+            System.out.println("Ошибка: Не указано имя файла или директории для удаления.");
             return;
         }
 
         File fileToRemove = new File(currentDirectory, parts[1]);
         if (fileToRemove.exists()) {
             if (fileToRemove.isDirectory() && fileToRemove.list().length != 0) {
-                System.out.println("Невозможно удалить непустую директорию.");
+                System.out.println("Ошибка: Невозможно удалить непустую директорию.");
             } else {
                 fileToRemove.delete();
                 System.out.println("Удалено: " + fileToRemove.getName());
             }
         } else {
-            System.out.println("Файл или директория не найдены.");
+            System.out.println("Ошибка: Файл или директория не найдены.");
         }
     }
 
     private void moveFile(String[] parts) {
         if (parts.length < 3) {
-            System.out.println("Не указаны источник и место назначения.");
+            System.out.println("Ошибка: Не указаны источник и место назначения.");
             return;
         }
 
@@ -152,7 +158,7 @@ public class FileManager {
         File destinationFile = new File(currentDirectory, parts[2]);
         if (sourceFile.exists()) {
             if (destinationFile.exists()) {
-                System.out.print("Файл " + destinationFile.getName() + " уже существует. Переопределить? (y/n): ");
+                System.out.print("Предупреждение: Файл " + destinationFile.getName() + " уже существует. Переопределить? (y/n): ");
                 Scanner scanner = new Scanner(System.in);
                 String response = scanner.nextLine();
                 if (!response.equalsIgnoreCase("y")) {
@@ -162,13 +168,13 @@ public class FileManager {
             sourceFile.renameTo(destinationFile);
             System.out.println("Перемещено: " + sourceFile.getName() + " -> " + destinationFile.getName());
         } else {
-            System.out.println("Файл-источник не найден.");
+            System.out.println("Ошибка: Файл-источник не найден.");
         }
     }
 
-    private void copyFile(String[] parts) throws IOException {
+    private void copyFile(String[] parts) {
         if (parts.length < 3) {
-            System.out.println("Не указаны источник и место назначения.");
+            System.out.println("Ошибка: Не указаны источник и место назначения.");
             return;
         }
 
@@ -176,35 +182,43 @@ public class FileManager {
         File destinationFile = new File(currentDirectory, parts[2]);
         if (sourceFile.exists()) {
             if (destinationFile.exists()) {
-                System.out.print("Файл " + destinationFile.getName() + " уже существует. Переопределить? (y/n): ");
+                System.out.print("Предупреждение: Файл " + destinationFile.getName() + " уже существует. Переопределить? (y/n): ");
                 Scanner scanner = new Scanner(System.in);
                 String response = scanner.nextLine();
                 if (!response.equalsIgnoreCase("y")) {
                     return;
                 }
             }
-            Files.copy(sourceFile.toPath(), destinationFile.toPath());
-            System.out.println("Скопировано: " + sourceFile.getName() + " -> " + destinationFile.getName());
+            try {
+                Files.copy(sourceFile.toPath(), destinationFile.toPath());
+                System.out.println("Скопировано: " + sourceFile.getName() + " -> " + destinationFile.getName());
+            } catch (IOException e) {
+                System.out.println("Ошибка при копировании файла: " + e.getMessage());
+            }
         } else {
-            System.out.println("Файл-источник не найден.");
+            System.out.println("Ошибка: Файл-источник не найден.");
         }
     }
 
-    private void fileInfo(String[] parts) throws IOException {
+    private void fileInfo(String[] parts) {
         if (parts.length < 2) {
-            System.out.println("Не указано имя файла.");
+            System.out.println("Ошибка: Не указано имя файла.");
             return;
         }
 
         File file = new File(currentDirectory, parts[1]);
         if (file.exists()) {
-            BasicFileAttributes attrs = Files.readAttributes(file.toPath(), BasicFileAttributes.class);
-            System.out.printf("Имя: %s%nРазмер: %d байт%nДата последнего изменения: %s%n",
-                    file.getName(),
-                    attrs.size(),
-                    attrs.lastModifiedTime());
+            try {
+                BasicFileAttributes attrs = Files.readAttributes(file.toPath(), BasicFileAttributes.class);
+                System.out.printf("Имя: %s%nРазмер: %d байт%nДата последнего изменения: %s%n",
+                        file.getName(),
+                        attrs.size(),
+                        attrs.lastModifiedTime());
+            } catch (IOException e) {
+                System.out.println("Ошибка получения информации о файле: " + e.getMessage());
+            }
         } else {
-            System.out.println("Файл не найден.");
+            System.out.println("Ошибка: Файл не найден.");
         }
     }
 
@@ -219,12 +233,13 @@ public class FileManager {
         System.out.println("cp [source] [destination] - скопировать файл.");
         System.out.println("finfo [filename] - получить информацию о файле.");
         System.out.println("help        - вывести список поддерживаемых команд.");
+        System.out.println("find        - найти файл в текущем каталоге или его подкаталогах.");
         System.out.println("exit        - завершить работу.");
     }
 
     private void findFile(String[] parts) {
         if (parts.length < 2) {
-            System.out.println("Не указано имя файла для поиска.");
+            System.out.println("Ошибка: Не указано имя файла для поиска.");
             return;
         }
 
@@ -244,5 +259,4 @@ public class FileManager {
             }
         }
     }
-
 }
